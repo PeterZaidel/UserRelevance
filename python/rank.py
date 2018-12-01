@@ -44,12 +44,22 @@ class XgbModel:
         self.num_boost_round = num_boost_round
         self.params = params
 
-    def fit(self, X, y, group):
+    def fit(self, X, y, group, X_val=None, y_val=None, group_val = None):
         dtrain = xgb.DMatrix(data=X, label=y)
         dtrain.set_group(group)
 
         self.evres = dict()
-        self.xgb_model = xgb.train(self.params, dtrain, num_boost_round=self.num_boost_round, evals=[(dtrain, 'train')],
+
+        if X_val is not None and y_val is not None and group_val is not None:
+            dval = xgb.DMatrix(data=X_val, label=y_val)
+            dval.set_group(group_val)
+            self.xgb_model = xgb.train(self.params, dtrain, num_boost_round=self.num_boost_round,
+                                       evals=[(dtrain, 'train'), (dval, 'val')],
+                                       evals_result=self.evres,
+                                       verbose_eval=True)
+
+        else:
+            self.xgb_model = xgb.train(self.params, dtrain, num_boost_round=self.num_boost_round, evals=[(dtrain, 'train')],
                               evals_result=self.evres,
                               verbose_eval=True)
 
@@ -248,22 +258,22 @@ def load_data(path):
 
 
 
-# def train_val_split(X_data, y_data, qid_data, group_sizes, test_size=0.2):
-#     queries_test_size = int(group_sizes.shape[0] * test_size)
-#     queries_train_size = group_sizes.shape[0] - queries_test_size
-#     print(group_sizes.shape[0], queries_test_size, queries_train_size)
-#
-#     group_train, group_val = group_sizes[:queries_train_size], group_sizes[queries_train_size:]
-#     print(group_train.shape[0], group_val.shape[0])
-#
-#     train_x_len = group_train.sum()
-#     print(X_data.shape[0], train_x_len, X_data.shape[0] - train_x_len)
-#
-#     X_train, X_val = X_data[:train_x_len], X_data[train_x_len:]
-#     y_train, y_val = y_data[:train_x_len], y_data[train_x_len:]
-#     qid_train, qid_val = qid_data[:train_x_len], qid_data[train_x_len:]
-#
-#     return X_train, y_train, qid_train, group_train, X_val, y_val, qid_val, group_val
+def train_val_split(X_data, y_data, qid_data, group_sizes, test_size=0.2):
+    queries_test_size = int(group_sizes.shape[0] * test_size)
+    queries_train_size = group_sizes.shape[0] - queries_test_size
+    print(group_sizes.shape[0], queries_test_size, queries_train_size)
+
+    group_train, group_val = group_sizes[:queries_train_size], group_sizes[queries_train_size:]
+    print(group_train.shape[0], group_val.shape[0])
+
+    train_x_len = group_train.sum()
+    print(X_data.shape[0], train_x_len, X_data.shape[0] - train_x_len)
+
+    X_train, X_val = X_data[:train_x_len], X_data[train_x_len:]
+    y_train, y_val = y_data[:train_x_len], y_data[train_x_len:]
+    qid_train, qid_val = qid_data[:train_x_len], qid_data[train_x_len:]
+
+    return X_train, y_train, qid_train, group_train, X_val, y_val, qid_val, group_val
 
 
 # prepare_xgb_file(xgb_test_file)
@@ -273,15 +283,20 @@ urls_train, X_train, y_train, qid_train, group_train = load_data(xgb_train_file)
 
 urls_test, X_test, y_test, qid_test, group_test = load_data(xgb_test_file)
 
+#X_train, y_train, qid_train, group_train, X_val, y_val, qid_val, group_val = train_val_split(X_train, y_train, qid_train, group_train)
+
 # find_similar(urls_train, qid_train)
 # find_similar(urls_test, qid_test)
 
 
-model = XgbModel(params = {'objective': 'rank:pairwise', 'eta': 0.01, 'max_depth': 5, 'eval_metric': 'ndcg@5',
+model = XgbModel(params = {'objective': 'rank:pairwise', 'eta': 0.008, 'max_depth': 5, 'eval_metric': 'ndcg@5',
           'nthread': 4}, num_boost_round=1500)
 
 #model = FeatureModel(feature_idx=3)
+#model.fit(X_train, y_train, group_train, X_val, y_val, group_val)
 model.fit(X_train, y_train, group_train)
+
+# exit(0)
 
 
 model_name = model.get_model_name() + '_features2'
